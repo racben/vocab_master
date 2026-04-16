@@ -7,14 +7,16 @@ if [[ "$1" == "--preview-helper" ]]; then
     raw_file="$2"
     line_num="$3"
     
-    # Safely strip any invisible ANSI codes ripgrep might have injected
+    # Safely strip any invisible ANSI codes
     clean_file=$(printf '%s' "$raw_file" | sed 's/\x1b\[[0-9;]*m//g')
     
-    # Attempt to use bat for full context, fallback to cat with a manual header
+    # Print exactly ONE clean header line. This is what we will pin.
+    printf "\033[1;33mFile:\033[0m %s\n" "$clean_file"
+    
+    # Run bat without its native header (just line numbers), or fallback to cat
     if command -v bat >/dev/null 2>&1; then
-        bat --color=always --style=header,numbers --highlight-line "$line_num" "$clean_file" 2>/dev/null
+        bat --color=always --style=numbers --highlight-line "$line_num" "$clean_file" 2>/dev/null
     else
-        printf "\033[1;33mFile:\033[0m %s\n\n" "$clean_file"
         cat "$clean_file" 2>/dev/null
     fi
     exit 0
@@ -55,7 +57,6 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         continue
     fi
 
-    # fzf calls THIS script ($0) with the --preview-helper flag to render the context pane
     selected=$(echo "$matches" | fzf --prompt="Select sentence for [$word] > " \
         --ansi \
         --delimiter ':' \
@@ -63,7 +64,7 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         --height=80% \
         --layout=reverse \
         --preview="\"$0\" --preview-helper {1} {2}" \
-        --preview-window="right:60%:+{2}-/2:wrap")
+        --preview-window="right:60%:+{2}-/2:~1:wrap")
 
     if [[ -n "$selected" ]]; then
         sentence=$(echo "$selected" | cut -d':' -f3- | sed 's/\x1b\[[0-9;]*m//g')
