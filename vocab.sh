@@ -49,7 +49,6 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         rg_args=(-e "$s" -e "$t")
     fi
 
-    # Run ripgrep with native color highlighting, keeping path and line uncolored
     matches=$(rg --color=always --colors 'path:none' --colors 'line:none' -F -n -H --no-heading "${rg_args[@]}" "$CORPUS_DIR")
 
     if [[ -z "$matches" ]]; then
@@ -57,20 +56,39 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         continue
     fi
 
-    selected=$(echo "$matches" | fzf --prompt="Select sentence for [$word] > " \
+    # fzf calls THIS script ($0) with the --preview-helper flag to render the context pane.
+    # Added --expect=ctrl-c so fzf intercepts ^C as a normal key instead of an abort.
+    raw_selected=$(echo "$matches" | fzf --prompt="Select sentence for [$word] > " \
         --ansi \
         --delimiter ':' \
         --with-nth '3..' \
         --height=80% \
         --layout=reverse \
+        --expect=ctrl-c \
         --preview="\"$0\" --preview-helper {1} {2}" \
         --preview-window="right:60%:+{2}-/2:~1:wrap")
 
+    # If raw_selected is completely empty, the user pressed <ESC> (abort).
+    if [[ -z "$raw_selected" ]]; then
+        echo "Skipped '[$word]' — user aborted selection."
+        continue
+    fi
+
+    # Parse fzf's --expect output. 
+    # Line 1 is the key pressed (empty if <RET>, 'ctrl-c' if ^C)
+    # Line 2 is the actual selected sentence.
+    key=$(head -n 1 <<< "$raw_selected")
+    selected=$(tail -n +2 <<< "$raw_selected")
+
+    if [[ "$key" == "ctrl-c" ]]; then
+        echo -e "\nScript aborted by user. Progress so far is saved."
+        break
+    fi
+
+    # If key is empty, user pressed <RET>
     if [[ -n "$selected" ]]; then
         sentence=$(echo "$selected" | cut -d':' -f3- | sed 's/\x1b\[[0-9;]*m//g')
         echo -e "${word}\t${sentence}" >> "$OUTPUT_FILE"
-    else
-        echo "Skipped '[$word]' — user aborted."
     fi
 
 done < "$INPUT_FILE"
