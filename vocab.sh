@@ -38,7 +38,12 @@ fi
 
 while IFS= read -r word || [[ -n "$word" ]]; do
     word="${word//[$'\t\r\n ']/}"
+
+    # Skip empty lines
     [[ -z "$word" ]] && continue
+    
+    # Skip lines starting with '#'
+    [[ "$word" == \#* ]] && continue
 
     s=$(printf '%s' "$word" | opencc -c t2s.json 2>/dev/null || printf '%s' "$word")
     t=$(printf '%s' "$word" | opencc -c s2t.json 2>/dev/null || printf '%s' "$word")
