@@ -1,5 +1,28 @@
 #!/bin/bash
 
+# ==============================================================================
+# PREVIEW HELPER (Called recursively by fzf)
+# ==============================================================================
+if [[ "$1" == "--preview-helper" ]]; then
+    raw_file="$2"
+    line_num="$3"
+    
+    # Safely strip any invisible ANSI codes ripgrep might have injected
+    clean_file=$(printf '%s' "$raw_file" | sed 's/\x1b\[[0-9;]*m//g')
+    
+    # Attempt to use bat for full context, fallback to cat with a manual header
+    if command -v bat >/dev/null 2>&1; then
+        bat --color=always --style=header,numbers --highlight-line "$line_num" "$clean_file" 2>/dev/null
+    else
+        printf "\033[1;33mFile:\033[0m %s\n\n" "$clean_file"
+        cat "$clean_file" 2>/dev/null
+    fi
+    exit 0
+fi
+
+# ==============================================================================
+# MAIN SCRIPT
+# ==============================================================================
 CORPUS_DIR="/Users/ben/Documents/Chinese Text Analysis"
 INPUT_FILE="$1"
 OUTPUT_FILE="results.tsv"
@@ -24,8 +47,7 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         rg_args=(-e "$s" -e "$t")
     fi
 
-    # 1. We keep native ripgrep colors, but disable color on the path and line numbers
-    # to ensure fzf can split the columns cleanly.
+    # Run ripgrep with native color highlighting, keeping path and line uncolored
     matches=$(rg --color=always --colors 'path:none' --colors 'line:none' -F -n -H --no-heading "${rg_args[@]}" "$CORPUS_DIR")
 
     if [[ -z "$matches" ]]; then
@@ -33,17 +55,15 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         continue
     fi
 
-    # 2. In the preview window, we just 'echo' the variables directly to the screen. 
-    # {} is the raw ripgrep output line. We use 'cut' to strip the filename and line number,
-    # leaving just the highlighted paragraph to wrap natively in the window.
+    # fzf calls THIS script ($0) with the --preview-helper flag to render the context pane
     selected=$(echo "$matches" | fzf --prompt="Select sentence for [$word] > " \
         --ansi \
         --delimiter ':' \
         --with-nth '3..' \
         --height=80% \
         --layout=reverse \
-        --preview='echo -e "\033[1;33mFile:\033[0m {1}\n"; echo {} | cut -d: -f3-' \
-        --preview-window="right:60%:wrap")
+        --preview="\"$0\" --preview-helper {1} {2}" \
+        --preview-window="right:60%:+{2}-/2:wrap")
 
     if [[ -n "$selected" ]]; then
         sentence=$(echo "$selected" | cut -d':' -f3- | sed 's/\x1b\[[0-9;]*m//g')
