@@ -13,14 +13,12 @@ if [[ "$1" == "--preview-helper" ]]; then
     
     printf "\033[1;33mFile:\033[0m %s\n" "$clean_file"
     
-    # Set up ripgrep arguments to match the variants
     if [[ "$s" == "$t" ]]; then
         rg_args=(-e "$s")
     else
         rg_args=(-e "$s" -e "$t")
     fi
     
-    # Pipe bat/cat through `rg --passthru` to inject red highlighting on the target words
     if command -v bat >/dev/null 2>&1; then
         bat --color=always --style=numbers --highlight-line "$line_num" "$clean_file" 2>/dev/null | \
             rg --passthru --color=always -F "${rg_args[@]}"
@@ -34,24 +32,38 @@ fi
 # ==============================================================================
 # MAIN SCRIPT
 # ==============================================================================
-CORPUS_DIR="/Users/ben/Documents/Chinese Text Analysis"
-INPUT_FILE="$1"
-OUTPUT_FILE="results.tsv"
+MAIN_CORPUS="$HOME/Chinese Text Analysis"
+# Using $HOME ensures tilde expansion works perfectly in bash scripts
+FALLBACK_DIRS=("$HOME/src/TurnBasedGameData" "$HOME/src/AnimeGameData")
+
+DEEP_SEARCH=0
+INPUT_FILE=""
+
+# Parse command line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -d|--deep) DEEP_SEARCH=1; shift ;;
+        *) INPUT_FILE="$1"; shift ;;
+    esac
+done
 
 if [[ -z "$INPUT_FILE" ]]; then
-    echo "Usage: ./vocab_fzf.sh <vocab_list.txt>"
+    echo "Usage: ./vocab_fzf.sh [-d|--deep] <vocab_list.txt>"
     exit 1
 fi
 
+OUTPUT_FILE="results.tsv"
 > "$OUTPUT_FILE"
+
+# Verify fallbacks exist so ripgrep doesn't throw errors
+valid_fallbacks=()
+for dir in "${FALLBACK_DIRS[@]}"; do
+    [[ -d "$dir" ]] && valid_fallbacks+=("$dir")
+done
 
 while IFS= read -r word || [[ -n "$word" ]]; do
     word="${word//[$'\t\r\n ']/}"
-
-    # Skip empty lines
     [[ -z "$word" ]] && continue
-    
-    # Skip lines starting with '#'
     [[ "$word" == \#* ]] && continue
 
     s=$(printf '%s' "$word" | opencc -c t2s.json 2>/dev/null || printf '%s' "$word")
@@ -63,14 +75,27 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         rg_args=(-e "$s" -e "$t")
     fi
 
-    matches=$(rg --color=always --colors 'path:none' --colors 'line:none' -F -n -H --no-heading "${rg_args[@]}" "$CORPUS_DIR")
+    # Store the base ripgrep command in an array for easy reuse
+    base_rg=(rg --color=always --colors 'path:none' --colors 'line:none' -F -n -H --no-heading "${rg_args[@]}")
+
+    if [[ $DEEP_SEARCH -eq 1 ]]; then
+        # Search everything simultaneously if --deep flag is passed
+        matches=$("${base_rg[@]}" "$MAIN_CORPUS" "${valid_fallbacks[@]}")
+    else
+        # Normal search
+        matches=$("${base_rg[@]}" "$MAIN_CORPUS")
+        
+        # Fallback triggered only if matches is empty
+        if [[ -z "$matches" && ${#valid_fallbacks[@]} -gt 0 ]]; then
+            matches=$("${base_rg[@]}" "${valid_fallbacks[@]}")
+        fi
+    fi
 
     if [[ -z "$matches" ]]; then
-        echo "Skipping '[$word]' — no matches found in corpus."
+        echo "Skipping '[$word]' — no matches found in any corpus."
         continue
     fi
 
-    # Passed "$s" and "$t" into the helper so it can highlight them
     raw_selected=$(echo "$matches" | fzf --prompt="Select sentence for [$word] > " \
         --ansi \
         --delimiter ':' \
@@ -81,15 +106,11 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         --preview="\"$0\" --preview-helper {1} {2} \"$s\" \"$t\"" \
         --preview-window="right:60%:+{2}-/2:~1:wrap")
 
-    # If raw_selected is completely empty, the user pressed <ESC> (abort).
     if [[ -z "$raw_selected" ]]; then
         echo "Skipped '[$word]' — user aborted selection."
         continue
     fi
 
-    # Parse fzf's --expect output. 
-    # Line 1 is the key pressed (empty if <RET>, 'ctrl-c' if ^C)
-    # Line 2 is the actual selected sentence.
     key=$(head -n 1 <<< "$raw_selected")
     selected=$(tail -n +2 <<< "$raw_selected")
 
@@ -98,7 +119,6 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         break
     fi
 
-    # If key is empty, user pressed <RET>
     if [[ -n "$selected" ]]; then
         sentence=$(echo "$selected" | cut -d':' -f3- | sed 's/\x1b\[[0-9;]*m//g')
         echo -e "${word}\t${sentence}" >> "$OUTPUT_FILE"
