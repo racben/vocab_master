@@ -97,7 +97,7 @@ OUTPUT_DIR="$SCRIPT_DIR/results"
 mkdir -p "$OUTPUT_DIR"
 
 timestamp=$(date +"%Y%m%d-%H%M%S")
-OUTPUT_FILE="results-${timestamp}-$$.tsv"
+OUTPUT_FILE="$OUTPUT_DIR/results-${timestamp}-$$.tsv"
 
 # Verify fallbacks exist so ripgrep doesn't throw errors
 valid_fallbacks=()
@@ -172,9 +172,11 @@ while IFS= read -r word || [[ -n "$word" ]]; do
             sentence="$line_text"
         fi
 
-        echo -e "${word}\t${sentence}" | tee -a "$OUTPUT_FILE"
+        echo -e "${word}\t${sentence}" >> "$OUTPUT_FILE"
     fi
 
 done < "$INPUT_SOURCE"
 
 echo "Finished! Results saved to $OUTPUT_FILE"
+
+cat $OUTPUT_FILE
