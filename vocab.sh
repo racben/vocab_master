@@ -83,8 +83,13 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 if [[ -z "$INPUT_FILE" ]]; then
-    echo "Usage: ./vocab_fzf.sh [-d|--deep] <vocab_list.txt>"
-    exit 1
+    if [ -t 0 ]; then
+        echo "Usage: ./vocab_fzf.sh [-d|--deep] <vocab_list.txt>  OR  pipe input via stdin"
+        exit 1
+    fi
+    INPUT_SOURCE="/dev/stdin"
+else
+    INPUT_SOURCE="$INPUT_FILE"
 fi
 
 timestamp=$(date +"%Y%m%d-%H%M%S")
@@ -166,6 +171,6 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         echo -e "${word}\t${sentence}" >> "$OUTPUT_FILE"
     fi
 
-done < "$INPUT_FILE"
+done < "$INPUT_SOURCE"
 
 echo "Finished! Results saved to $OUTPUT_FILE"
