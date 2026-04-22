@@ -1,5 +1,40 @@
 #!/bin/bash
 
+# sentence-parsing logic (to capture better than whole line)
+extract_sentence_context() {
+    local line="$1"
+    local needle1="$2"
+    local needle2="$3"
+
+    python3 - "$line" "$needle1" "$needle2" <<'PY'
+import re
+import sys
+
+line = sys.argv[1]
+needle1 = sys.argv[2]
+needle2 = sys.argv[3]
+
+text = line.strip()
+if not text:
+    print("")
+    sys.exit(0)
+
+# Split on common Chinese sentence-ending punctuation, keeping punctuation attached.
+parts = re.split(r'(?<=[。！？!?；;])', text)
+parts = [p.strip() for p in parts if p.strip()]
+
+def contains_target(s):
+    return needle1 in s or needle2 in s
+
+hits = [s for s in parts if contains_target(s)]
+
+if hits:
+    print(''.join(hits).strip())
+else:
+    print(text)
+PY
+}
+
 # ==============================================================================
 # PREVIEW HELPER (Called recursively by fzf)
 # ==============================================================================
@@ -102,7 +137,7 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         --with-nth '3..' \
         --height=80% \
         --layout=reverse \
-        --expect=ctrl-c \
+        --expect=ctrl-c,alt-enter \
         --preview="\"$0\" --preview-helper {1} {2} \"$s\" \"$t\"" \
         --preview-window="up:60%:+{2}-/2:~1:wrap")
 
@@ -120,7 +155,14 @@ while IFS= read -r word || [[ -n "$word" ]]; do
     fi
 
     if [[ -n "$selected" ]]; then
-        sentence=$(echo "$selected" | cut -d':' -f3- | sed 's/\x1b\[[0-9;]*m//g')
+        line_text=$(echo "$selected" | cut -d':' -f3- | sed 's/\x1b\[[0-9;]*m//g')
+
+        if [[ "$key" == "alt-enter" ]]; then
+            sentence=$(extract_sentence_context "$line_text" "$s" "$t")
+        else
+            sentence="$line_text"
+        fi
+
         echo -e "${word}\t${sentence}" >> "$OUTPUT_FILE"
     fi
 
