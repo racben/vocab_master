@@ -92,6 +92,10 @@ else
     INPUT_SOURCE="$INPUT_FILE"
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="$SCRIPT_DIR/results"
+mkdir -p "$OUTPUT_DIR"
+
 timestamp=$(date +"%Y%m%d-%H%M%S")
 OUTPUT_FILE="results-${timestamp}-$$.tsv"
 
@@ -168,7 +172,7 @@ while IFS= read -r word || [[ -n "$word" ]]; do
             sentence="$line_text"
         fi
 
-        echo -e "${word}\t${sentence}" >> "$OUTPUT_FILE"
+        echo -e "${word}\t${sentence}" | tee -a "$OUTPUT_FILE"
     fi
 
 done < "$INPUT_SOURCE"
