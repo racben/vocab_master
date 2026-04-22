@@ -52,8 +52,8 @@ if [[ -z "$INPUT_FILE" ]]; then
     exit 1
 fi
 
-OUTPUT_FILE="results.tsv"
-> "$OUTPUT_FILE"
+timestamp=$(date +"%Y%m%d-%H%M%S")
+OUTPUT_FILE="results-${timestamp}-$$.tsv"
 
 # Verify fallbacks exist so ripgrep doesn't throw errors
 valid_fallbacks=()
@@ -104,7 +104,7 @@ while IFS= read -r word || [[ -n "$word" ]]; do
         --layout=reverse \
         --expect=ctrl-c \
         --preview="\"$0\" --preview-helper {1} {2} \"$s\" \"$t\"" \
-        --preview-window="right:60%:+{2}-/2:~1:wrap")
+        --preview-window="up:60%:+{2}-/2:~1:wrap")
 
     if [[ -z "$raw_selected" ]]; then
         echo "Skipped '[$word]' — user aborted selection."
