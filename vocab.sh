@@ -106,7 +106,7 @@ for dir in "${FALLBACK_DIRS[@]}"; do
 done
 
 while IFS= read -r word || [[ -n "$word" ]]; do
-    word="${word//[$'\t\r\n ']/}"
+    word=$(printf '%s\n' "$word" | awk '{print $1}')
     [[ -z "$word" ]] && continue
     [[ "$word" == \#* ]] && continue
 
