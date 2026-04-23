@@ -120,7 +120,7 @@ while IFS= read -r word || [[ -n "$word" ]]; do
     fi
 
     # Store the base ripgrep command in an array for easy reuse
-    base_rg=(rg --color=always --colors 'path:none' --colors 'line:none' -F -n -H --no-heading --glob '!**/old/**' --glob '!**/current/**' "${rg_args[@]}")
+    base_rg=(rg --color=always --colors 'path:none' --colors 'line:none' -F -n -H --no-heading --glob '!**/old/**' --glob '!**/current/**' --sort=modified "${rg_args[@]}")
 
     if [[ $DEEP_SEARCH -eq 1 ]]; then
         # Search everything simultaneously if --deep flag is passed
